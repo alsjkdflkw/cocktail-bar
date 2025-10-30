@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { IngredientService } from './ingredient.service';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
@@ -13,8 +13,16 @@ export class IngredientController {
   }
 
   @Get()
-  findAll() {
-    return this.ingredientService.findAll();
+  findAll(
+    @Query('isAlcoholic') isAlcoholic?: string,
+    @Query('sortBy') sortBy?: 'name' | 'id',
+    @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
+  ) {
+    return this.ingredientService.findAll({
+      isAlcoholic: isAlcoholic === 'true' ? true : isAlcoholic === 'false' ? false : undefined,
+      sortBy,
+      sortOrder,
+    });
   }
 
   @Get(':id')

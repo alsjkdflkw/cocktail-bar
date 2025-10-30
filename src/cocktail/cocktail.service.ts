@@ -67,10 +67,53 @@ export class CocktailService {
     }
   }
 
-  async findAll() {
-    return this.cocktailRepository.find({
-      relations: ['cocktailIngredients', 'cocktailIngredients.ingredient'],
-    });
+  async findAll(filters?: {
+    ingredientId?: number;
+    nonAlcoholic?: boolean;
+    category?: string;
+    sortBy?: 'name' | 'category' | 'id';
+    sortOrder?: 'ASC' | 'DESC';
+  }) {
+    const queryBuilder = this.cocktailRepository
+      .createQueryBuilder('cocktail')
+      .leftJoinAndSelect('cocktail.cocktailIngredients', 'cocktailIngredient')
+      .leftJoinAndSelect('cocktailIngredient.ingredient', 'ingredient');
+
+    // Filter by ingredient
+    if (filters?.ingredientId) {
+      queryBuilder.andWhere(
+        'ingredient.id = :ingredientId',
+        { ingredientId: filters.ingredientId }
+      );
+    }
+
+    // Filter non-alcoholic cocktails
+    if (filters?.nonAlcoholic) {
+      queryBuilder.andWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('ci.cocktailId')
+          .from('cocktail_ingredient', 'ci')
+          .innerJoin('ingredient', 'ing', 'ci.ingredientId = ing.id')
+          .where('ing.isAlcoholic = 1')
+          .getQuery();
+        return `cocktail.id NOT IN ${subQuery}`;
+      });
+    }
+
+    // Filter by category
+    if (filters?.category) {
+      queryBuilder.andWhere('cocktail.category = :category', {
+        category: filters.category,
+      });
+    }
+
+    // Sorting
+    const sortBy = filters?.sortBy || 'id';
+    const sortOrder = filters?.sortOrder || 'ASC';
+    queryBuilder.orderBy(`cocktail.${sortBy}`, sortOrder);
+
+    return queryBuilder.getMany();
   }
 
   async findOne(id: number) {

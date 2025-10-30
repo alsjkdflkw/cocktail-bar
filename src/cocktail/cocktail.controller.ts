@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { CocktailService } from './cocktail.service';
 import { CreateCocktailDto } from './dto/create-cocktail.dto';
 import { UpdateCocktailDto } from './dto/update-cocktail.dto';
@@ -13,8 +13,20 @@ export class CocktailController {
   }
 
   @Get()
-  findAll() {
-    return this.cocktailService.findAll();
+  findAll(
+    @Query('ingredientId') ingredientId?: string,
+    @Query('nonAlcoholic') nonAlcoholic?: string,
+    @Query('category') category?: string,
+    @Query('sortBy') sortBy?: 'name' | 'category' | 'id',
+    @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
+  ) {
+    return this.cocktailService.findAll({
+      ingredientId: ingredientId ? +ingredientId : undefined,
+      nonAlcoholic: nonAlcoholic === 'true',
+      category,
+      sortBy,
+      sortOrder,
+    });
   }
 
   @Get(':id')

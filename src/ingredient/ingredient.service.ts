@@ -25,8 +25,26 @@ export class IngredientService {
     return this.ingredientRepository.save(newIngredient);
   }
 
-  findAll() {
-    return this.ingredientRepository.find();
+  async findAll(filters?: {
+    isAlcoholic?: boolean;
+    sortBy?: 'name' | 'id';
+    sortOrder?: 'ASC' | 'DESC';
+  }) {
+    const queryBuilder = this.ingredientRepository.createQueryBuilder('ingredient');
+
+    // Filter by alcoholic status
+    if (filters?.isAlcoholic !== undefined) {
+      queryBuilder.andWhere('ingredient.isAlcoholic = :isAlcoholic', {
+        isAlcoholic: filters.isAlcoholic,
+      });
+    }
+
+    // Sorting
+    const sortBy = filters?.sortBy || 'id';
+    const sortOrder = filters?.sortOrder || 'ASC';
+    queryBuilder.orderBy(`ingredient.${sortBy}`, sortOrder);
+
+    return queryBuilder.getMany();
   }
 
   findOne(id: number) {
