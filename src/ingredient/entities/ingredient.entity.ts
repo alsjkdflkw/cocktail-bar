@@ -1,32 +1,26 @@
-import {
-  Column,
-  Entity,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  JoinColumn,
-} from 'typeorm';
-import { Cocktail } from '../../cocktail/entities/cocktail.entity';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { CocktailIngredient } from '../../cocktail/entities/cocktail-ingredient.entity';
 
 @Entity()
 export class Ingredient {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({unique : true})
-  name: string; // nazwa
+  @Column({ unique: true })
+  name: string;
 
-  @Column({ type: 'text' }) 
+  @Column({ type: 'text' })
   description: string;
 
-  @Column({ default: false }) 
+  @Column({ default: false })
   isAlcoholic: boolean;
 
   @Column({ nullable: true })
   photo: string;
 
-  @ManyToOne(() => Cocktail, (cocktail) => cocktail.ingredients, {
-    onDelete: 'CASCADE', 
-  })
-  @JoinColumn({ name: 'cocktailId' }) 
-  cocktail: Cocktail;
+  @OneToMany(
+    () => CocktailIngredient,
+    (cocktailIngredient) => cocktailIngredient.ingredient,
+  )
+  cocktailIngredients: CocktailIngredient[];
 }
