@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateCocktailDto } from './dto/create-cocktail.dto';
 import { UpdateCocktailDto } from './dto/update-cocktail.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,8 +9,18 @@ import { Repository } from 'typeorm';
 export class CocktailService {
   constructor(@InjectRepository(Cocktail) private cocktailRepository : Repository<Cocktail>) {}
 
-  create(createCocktailDto: CreateCocktailDto) {
+  async  create(createCocktailDto: CreateCocktailDto) {
     const newCocktail = this.cocktailRepository.create(createCocktailDto);
+
+    try {
+      return await this.cocktailRepository.save(newCocktail);
+    } catch (error) {
+      if (error.code === '23505') {
+        throw new ConflictException('A cocktail with this name is already added.');
+      }
+      
+      throw new InternalServerErrorException();
+    }
 
     return this.cocktailRepository.save(newCocktail);
   }
