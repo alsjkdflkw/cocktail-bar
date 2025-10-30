@@ -115,6 +115,8 @@ Note: Existing tests are not broken by changes, they simply need to be updated t
 - `PATCH /ingredient/:id` - Update ingredient
 - `DELETE /ingredient/:id` - Delete ingredient
 
+**Note:** The API uses singular nouns (`/cocktail`, `/ingredient`) for resource paths. While plural nouns (`/cocktails`, `/ingredients`) are more common in REST conventions, the current implementation is functional and consistent.
+
 ### Access:
 - API: http://localhost:3000
 - Swagger Documentation: http://localhost:3000/api
