@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateCocktailDto } from './dto/create-cocktail.dto';
 import { UpdateCocktailDto } from './dto/update-cocktail.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -54,9 +59,12 @@ export class CocktailService {
       }
 
       return this.findOne(savedCocktail.id);
-    } catch (error) {
-      if (error.code === 'SQLITE_CONSTRAINT' || error.code === '23505') {
-        throw new ConflictException('A cocktail with this name already exists.');
+    } catch (error: unknown) {
+      const errorCode = (error as { code?: string }).code;
+      if (errorCode === 'SQLITE_CONSTRAINT' || errorCode === '23505') {
+        throw new ConflictException(
+          'A cocktail with this name already exists.',
+        );
       }
 
       if (error instanceof NotFoundException) {
@@ -81,10 +89,9 @@ export class CocktailService {
 
     // Filter by ingredient
     if (filters?.ingredientId) {
-      queryBuilder.andWhere(
-        'ingredient.id = :ingredientId',
-        { ingredientId: filters.ingredientId }
-      );
+      queryBuilder.andWhere('ingredient.id = :ingredientId', {
+        ingredientId: filters.ingredientId,
+      });
     }
 
     // Filter non-alcoholic cocktails

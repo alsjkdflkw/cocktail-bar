@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
@@ -7,18 +12,24 @@ import { Ingredient } from './entities/ingredient.entity';
 
 @Injectable()
 export class IngredientService {
-  constructor(@InjectRepository(Ingredient) private ingredientRepository : Repository<Ingredient>) {}
-  
+  constructor(
+    @InjectRepository(Ingredient)
+    private ingredientRepository: Repository<Ingredient>,
+  ) {}
+
   async create(createIngredientDto: CreateIngredientDto) {
     const newIngredient = this.ingredientRepository.create(createIngredientDto);
 
     try {
       return await this.ingredientRepository.save(newIngredient);
-    } catch (error) {
-      if (error.code === '23505') {
-        throw new ConflictException('An ingredient with this name is already added.');
+    } catch (error: unknown) {
+      const errorCode = (error as { code?: string }).code;
+      if (errorCode === 'SQLITE_CONSTRAINT' || errorCode === '23505') {
+        throw new ConflictException(
+          'An ingredient with this name is already added.',
+        );
       }
-      
+
       throw new InternalServerErrorException();
     }
 
@@ -30,7 +41,8 @@ export class IngredientService {
     sortBy?: 'name' | 'id';
     sortOrder?: 'ASC' | 'DESC';
   }) {
-    const queryBuilder = this.ingredientRepository.createQueryBuilder('ingredient');
+    const queryBuilder =
+      this.ingredientRepository.createQueryBuilder('ingredient');
 
     // Filter by alcoholic status
     if (filters?.isAlcoholic !== undefined) {
@@ -48,12 +60,15 @@ export class IngredientService {
   }
 
   findOne(id: number) {
-    return this.ingredientRepository.findOneBy({id});
+    return this.ingredientRepository.findOneBy({ id });
   }
 
   async update(id: number, updateIngredientDto: UpdateIngredientDto) {
     const ingredient = await this.findOne(id);
-    return this.ingredientRepository.save({ ...ingredient, ...updateIngredientDto});
+    return this.ingredientRepository.save({
+      ...ingredient,
+      ...updateIngredientDto,
+    });
   }
 
   async remove(id: number) {

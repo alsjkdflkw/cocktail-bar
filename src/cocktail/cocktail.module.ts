@@ -7,7 +7,9 @@ import { CocktailIngredient } from './entities/cocktail-ingredient.entity';
 import { Ingredient } from '../ingredient/entities/ingredient.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Cocktail, CocktailIngredient, Ingredient])],
+  imports: [
+    TypeOrmModule.forFeature([Cocktail, CocktailIngredient, Ingredient]),
+  ],
   controllers: [CocktailController],
   providers: [CocktailService],
 })

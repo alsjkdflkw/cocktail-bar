@@ -1,9 +1,4 @@
-import {
-  Column,
-  Entity,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { CocktailIngredient } from '../../cocktail/entities/cocktail-ingredient.entity';
 
 @Entity()
@@ -23,6 +18,9 @@ export class Ingredient {
   @Column({ nullable: true })
   photo: string;
 
-  @OneToMany(() => CocktailIngredient, (cocktailIngredient) => cocktailIngredient.ingredient)
+  @OneToMany(
+    () => CocktailIngredient,
+    (cocktailIngredient) => cocktailIngredient.ingredient,
+  )
   cocktailIngredients: CocktailIngredient[];
 }
