@@ -1,22 +1,23 @@
-import { Ingredient } from "src/ingredient/entities/ingredient.entity";
-import { Column, Entity, JoinColumn, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { CocktailIngredient } from './cocktail-ingredient.entity';
 
 @Entity()
 export class Cocktail {
-    @PrimaryGeneratedColumn()
-    id : number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column({unique : true})
-    name : string
+  @Column({ unique: true })
+  name: string;
 
-    @Column()
-    category : string
+  @Column()
+  category: string;
 
-    @Column() 
-    description : string
+  @Column({ type: 'text' })
+  instruction: string;
 
-    @OneToMany(() => Ingredient, (ingredient) => ingredient.cocktail, {
-    cascade: true, 
+  @OneToMany(() => CocktailIngredient, (cocktailIngredient) => cocktailIngredient.cocktail, {
+    cascade: true,
+    eager: true,
   })
-  ingredients: Ingredient[]; 
+  cocktailIngredients: CocktailIngredient[];
 }
