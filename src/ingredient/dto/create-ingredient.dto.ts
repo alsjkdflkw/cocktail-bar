@@ -1,7 +1,6 @@
 import {
   IsBoolean,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
 } from 'class-validator';
@@ -22,8 +21,4 @@ export class CreateIngredientDto {
   @IsString()
   @IsOptional()
   photo?: string; 
-
-  @IsNumber()
-  @IsNotEmpty({ message: 'Należy podać ID koktajlu, do którego należy składnik' })
-  cocktailId: number; 
 }

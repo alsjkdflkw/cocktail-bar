@@ -1,9 +1,8 @@
 import {
   Column,
   Entity,
-  ManyToOne,
+  ManyToMany,
   PrimaryGeneratedColumn,
-  JoinColumn,
 } from 'typeorm';
 import { Cocktail } from '../../cocktail/entities/cocktail.entity';
 
@@ -24,9 +23,6 @@ export class Ingredient {
   @Column({ nullable: true })
   photo: string;
 
-  @ManyToOne(() => Cocktail, (cocktail) => cocktail.ingredients, {
-    onDelete: 'CASCADE', 
-  })
-  @JoinColumn({ name: 'cocktailId' }) 
-  cocktail: Cocktail;
+  @ManyToMany(() => Cocktail, (cocktail) => cocktail.ingredients)
+  cocktails: Cocktail[];
 }

@@ -4,14 +4,14 @@ import { IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateCocktailDto {
   @IsString()
-  @IsNotEmpty({ message: 'Nazwa koktajlu jest wymagana' })
+  @IsNotEmpty()
   name: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'Kategoria jest wymagana' })
+  @IsNotEmpty()
   category: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'Opis jest wymagany' })
+  @IsNotEmpty()
   description: string;
 }
