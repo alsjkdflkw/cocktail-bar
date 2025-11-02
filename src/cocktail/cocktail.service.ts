@@ -1,20 +1,101 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { UpdateCocktailDto } from './dto/update-cocktail.dto';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Cocktail } from './entities/cocktail.entity';
 import { In, Repository } from 'typeorm';
+import { Cocktail } from './entities/cocktail.entity';
+import { Ingredient } from '../ingredient/entities/ingredient.entity';
 import { CreateCocktailDto } from './dto/create-cocktail.dto';
-import { Ingredient } from 'src/ingredient/entities/ingredient.entity';
-import { AddIngredientToCocktailsDto } from './dto/add-ingredient-to-cocktail.dto'; 
-import { SetIngredientQuantityDto } from 'src/ingredient/entities/set-ingredient-quantity.dto';
+import { UpdateCocktailDto } from './dto/update-cocktail.dto';
 import { FilterSortCocktailsDto } from './dto/filter-sort-cocktile.dto';
+
+type CreateWithIngredients = CreateCocktailDto & { ingredientIds?: number[] };
+type UpdateWithIngredients = UpdateCocktailDto & { ingredientIds?: number[] };
+type IngredientPair = [number, string];
+type IngredientItem = {
+  id?: number;
+  name?: string;
+  description?: string;
+  isAlcoholic?: boolean;
+  quantity: string;
+};
 
 @Injectable()
 export class CocktailService {
   constructor(
-    @InjectRepository(Cocktail) private cocktailRepository: Repository<Cocktail>,
-    @InjectRepository(Ingredient) private ingredientRepository: Repository<Ingredient>,
+    @InjectRepository(Cocktail)
+    private readonly cocktailRepository: Repository<Cocktail>,
+    @InjectRepository(Ingredient)
+    private readonly ingredientRepository: Repository<Ingredient>,
   ) {}
+
+  private async loadIngredientsOrThrow(ids?: number[]) {
+    if (!ids || !ids.length) return undefined;
+    const found = await this.ingredientRepository.find({ where: { id: In(ids) } });
+    if (found.length !== ids.length) {
+      const ok = new Set(found.map((i) => i.id));
+      const missing = ids.filter((x) => !ok.has(x));
+      throw new NotFoundException(`Ingredient IDs not found: ${missing.join(', ')}`);
+    }
+    return found;
+  }
+
+  private async ensureIngredient(item: IngredientItem): Promise<Ingredient> {
+    if (item.id != null) {
+      const ing = await this.ingredientRepository.findOne({ where: { id: item.id } });
+      if (!ing) throw new NotFoundException(`Ingredient not found: ${item.id}`);
+      return ing;
+    }
+    if (!item.name?.trim() || item.isAlcoholic == null) {
+      throw new BadRequestException('New ingredient requires name and isAlcoholic');
+    }
+    const ing = this.ingredientRepository.create({
+      name: item.name.trim(),
+      description: item.description ?? '',
+      isAlcoholic: item.isAlcoholic,
+    });
+    return this.ingredientRepository.save(ing);
+  }
+
+  private async upsertQuantity(cocktailId: number, ingredientId: number, quantity: string) {
+    await this.cocktailRepository.manager.query(
+      `INSERT INTO cocktail_ingredients (cocktailId, ingredientId, quantity)
+       VALUES (?, ?, ?)
+       ON CONFLICT(cocktailId, ingredientId) DO UPDATE SET quantity = excluded.quantity`,
+      [cocktailId, ingredientId, quantity],
+    );
+  }
+
+  async create(dto: CreateWithIngredients) {
+    const pairs: IngredientPair[] = (((dto as any).ingredientPairs as IngredientPair[]) ?? []);
+    const items: IngredientItem[] = (((dto as any).ingredientItems as IngredientItem[]) ?? []);
+
+    const itemResults: Ingredient[] = [];
+    const itemQty = new Map<number, string>();
+    for (const it of items) {
+      const ing = await this.ensureIngredient(it);
+      itemResults.push(ing);
+      itemQty.set(ing.id, String(it.quantity));
+    }
+
+    const pairIds = Array.from(new Set(pairs.map(([id]) => id)));
+    const providedIds = Array.from(new Set([...(dto.ingredientIds ?? []), ...pairIds]));
+    const missingIds = providedIds.filter((id) => !itemResults.some((i) => i.id === id));
+    const others = await this.loadIngredientsOrThrow(missingIds);
+
+    const { ingredientIds: _drop, ...rest } = dto;
+    const entity: Cocktail = this.cocktailRepository.create(rest as Partial<Cocktail>);
+    (entity as any).ingredients = [...itemResults, ...(others ?? [])];
+
+    const saved = await this.cocktailRepository.save(entity);
+
+    for (const [ingId, qty] of itemQty) {
+      await this.upsertQuantity(saved.id, ingId, qty);
+    }
+    for (const [ingId, qty] of pairs) {
+      await this.upsertQuantity(saved.id, ingId, String(qty));
+    }
+
+    return this.findOne(saved.id);
+  }
 
   async findAllFiltered(dto: FilterSortCocktailsDto) {
     const {
@@ -32,29 +113,16 @@ export class CocktailService {
     const qb = this.cocktailRepository
       .createQueryBuilder('cocktail')
       .leftJoinAndSelect('cocktail.ingredients', 'ingredient')
-      .distinct(true); 
+      .distinct(true);
 
-    
-    if (name) {
-      qb.andWhere('cocktail.name LIKE :name', { name: `%${name}%` });
-    }
-
-    
-    if (category) {
-      qb.andWhere('cocktail.category = :category', { category });
-    }
-
-    
-    if (ingredientId) {
-      qb.andWhere('ingredient.id = :ingredientId', { ingredientId });
-    }
+    if (name) qb.andWhere('cocktail.name LIKE :name', { name: `%${name}%` });
+    if (category) qb.andWhere('cocktail.category = :category', { category });
+    if (ingredientId) qb.andWhere('ingredient.id = :ingredientId', { ingredientId });
 
     if (ingredientIds && ingredientIds.length) {
       if (ingredientsMode === 'any') {
-        
         qb.andWhere('ingredient.id IN (:...ingIdsAny)', { ingIdsAny: ingredientIds });
       } else {
-        
         ingredientIds.forEach((id, idx) => {
           qb.andWhere(
             `EXISTS (
@@ -67,7 +135,6 @@ export class CocktailService {
       }
     }
 
-    
     if (alcoholFree === 'true') {
       qb.andWhere(
         `NOT EXISTS (
@@ -80,7 +147,6 @@ export class CocktailService {
       );
     }
 
-    
     const orderMap: Record<string, string> = {
       name: 'cocktail.name',
       category: 'cocktail.category',
@@ -88,14 +154,12 @@ export class CocktailService {
     };
 
     if (sort) {
-      const parts = sort.split(',').map((x) => x.trim()).filter(Boolean);
+      const parts = sort.split(',').map((s) => s.trim()).filter(Boolean);
       for (const p of parts) {
         const desc = p.startsWith('-');
         const key = desc ? p.slice(1) : p;
         const col = orderMap[key];
-        if (col) {
-          qb.addOrderBy(col, desc ? 'DESC' : 'ASC');
-        }
+        if (col) qb.addOrderBy(col, desc ? 'DESC' : 'ASC');
       }
     } else {
       qb.addOrderBy('cocktail.name', 'ASC');
@@ -108,155 +172,56 @@ export class CocktailService {
     return qb.getMany();
   }
 
-
-  async create(createCocktailDto: CreateCocktailDto) {
-  const { ingredientIds, ...rest } =
-    createCocktailDto as CreateCocktailDto & { ingredientIds?: number[] };
-
-  const cocktail = this.cocktailRepository.create();
-  Object.assign(cocktail, rest);
-
-  if (Array.isArray(ingredientIds) && ingredientIds.length) {
-    const ingredients = await this.ingredientRepository.find({ where: { id: In(ingredientIds) } });
-    if (ingredients.length !== ingredientIds.length) {
-      const found = new Set(ingredients.map((i) => i.id));
-      const missing = ingredientIds.filter((id) => !found.has(id));
-      throw new NotFoundException(`Ingredient IDs not found: ${missing.join(', ')}`);
-    }
-    cocktail.ingredients = ingredients;
-  }
-
-  const saved = await this.cocktailRepository.save(cocktail); 
-  return this.findOne(saved.id);
-}
-
-  
-  async findAll() {
-    const cocktails = await this.cocktailRepository.find({
-      relations: { ingredients: true },
-    });
-
-    return cocktails.map((c) => ({
-      id: c.id,
-      name: c.name,
-      category: c.category,
-      description: c.description,
-      ingredients: (c.ingredients || []).map((i) => ({
-        id: i.id,
-        name: i.name,
-        description: i.description,
-        isAlcoholic: i.isAlcoholic,
-        photo: i.photo,
-      })),
-    }));
-  }
-
   async findOne(id: number) {
-    const c = await this.cocktailRepository.findOne({
-      where: { id },
-      relations: { ingredients: true },
-    });
-    if (!c) throw new NotFoundException(`Cocktail with ID "${id}" not found`);
-
-    return {
-      id: c.id,
-      name: c.name,
-      category: c.category,
-      description: c.description,
-      ingredients: (c.ingredients || []).map((i) => ({
-        id: i.id,
-        name: i.name,
-        description: i.description,
-        isAlcoholic: i.isAlcoholic,
-        photo: i.photo,
-      })),
-    };
+    const entity = await this.cocktailRepository.findOne({ where: { id }, relations: ['ingredients'] });
+    if (!entity) throw new NotFoundException('Cocktail not found');
+    return entity;
   }
 
-  async update(id: number, updateCocktailDto: UpdateCocktailDto) {
-    const cocktail = await this.cocktailRepository.findOne({
-      where: { id },
-      relations: { ingredients: true },
-    });
-    if (!cocktail) throw new NotFoundException(`Cocktail with ID "${id}" not found`);
+  async update(id: number, dto: UpdateWithIngredients) {
+    const pairs: IngredientPair[] = (((dto as any).ingredientPairs as IngredientPair[]) ?? []);
+    const items: IngredientItem[] = (((dto as any).ingredientItems as IngredientItem[]) ?? []);
 
-    const { ingredientIds, ...rest } = updateCocktailDto as any;
+    const { ingredientIds, ...rest } = dto;
+    await this.cocktailRepository.update(id, rest as any);
 
-    Object.assign(cocktail, rest);
+    const entity = await this.cocktailRepository.findOne({ where: { id }, relations: ['ingredients'] });
+    if (!entity) throw new NotFoundException('Cocktail not found');
 
-    if (Array.isArray(ingredientIds)) {
-      if (ingredientIds.length === 0) {
-        cocktail.ingredients = [];
-      } else {
-        const ingredients = await this.ingredientRepository.find({ where: { id: In(ingredientIds) } });
-        if (ingredients.length !== ingredientIds.length) {
-          const found = new Set(ingredients.map(i => i.id));
-          const missing = ingredientIds.filter(id => !found.has(id));
-          throw new NotFoundException(`Ingredient IDs not found: ${missing.join(', ')}`);
-        }
-        cocktail.ingredients = ingredients;
-      }
+    const itemResults: Ingredient[] = [];
+    const itemQty = new Map<number, string>();
+    for (const it of items) {
+      const ing = await this.ensureIngredient(it);
+      itemResults.push(ing);
+      itemQty.set(ing.id, String(it.quantity));
     }
 
-    return this.cocktailRepository.save(cocktail);
+    const pairIds = Array.from(new Set(pairs.map(([ingId]) => ingId)));
+    const currentIds = new Set((entity.ingredients ?? []).map((i) => i.id));
+    const baseIds =
+      ingredientIds !== undefined ? new Set(ingredientIds) : new Set<number>([...currentIds]);
+    for (const id2 of itemResults.map((i) => i.id)) baseIds.add(id2);
+    for (const id2 of pairIds) baseIds.add(id2);
+
+    const needLoad = Array.from(baseIds).filter((id2) => !itemResults.some((i) => i.id === id2));
+    const others = await this.loadIngredientsOrThrow(needLoad);
+
+    (entity as any).ingredients = [...itemResults, ...(others ?? [])];
+    await this.cocktailRepository.save(entity);
+
+    for (const [ingId, qty] of itemQty) {
+      await this.upsertQuantity(id, ingId, qty);
+    }
+    for (const [ingId, qty] of pairs) {
+      await this.upsertQuantity(id, ingId, String(qty));
+    }
+
+    return this.findOne(id);
   }
 
   async remove(id: number) {
-    const cocktail = await this.cocktailRepository.findOneBy({ id });
-    if (!cocktail) {
-      throw new NotFoundException(`Cocktail z ID "${id}" nie został znaleziony`);
-    }
-    return this.cocktailRepository.remove(cocktail);
-  }
-
-  async addIngredientToMany(dto: AddIngredientToCocktailsDto) {
-    const { ingredientId, cocktailIds } = dto;
-
-    const ingredient = await this.ingredientRepository.findOneBy({ id: ingredientId });
-    if (!ingredient) {
-      throw new NotFoundException(`Ingredient with ID "${ingredientId}" not found`);
-    }
-
-    const cocktails = await this.cocktailRepository.find({
-      where: { id: In(cocktailIds) },
-      relations: { ingredients: true },
-    });
-
-    if (cocktails.length !== cocktailIds.length) {
-      const foundIds = new Set(cocktails.map((c) => c.id));
-      const missing = cocktailIds.filter((id) => !foundIds.has(id));
-      throw new NotFoundException(`Cocktail IDs not found: ${missing.join(', ')}`);
-    }
-
-    for (const cocktail of cocktails) {
-      const has = (cocktail.ingredients || []).some((i) => i.id === ingredientId);
-      if (!has) {
-        cocktail.ingredients = [...(cocktail.ingredients || []), ingredient];
-        await this.cocktailRepository.save(cocktail);
-      }
-    }
-
-    return { updatedCocktailIds: cocktails.map((c) => c.id) };
-  }
-
-  async setIngredientQuantity(dto: SetIngredientQuantityDto) {
-    const { cocktailId, ingredientId, quantity } = dto;
-
-    const cocktail = await this.cocktailRepository.findOneBy({ id: cocktailId });
-    if (!cocktail) throw new NotFoundException(`Cocktail with ID "${cocktailId}" not found`);
-    const ingredient = await this.ingredientRepository.findOneBy({ id: ingredientId });
-    if (!ingredient) throw new NotFoundException(`Ingredient with ID "${ingredientId}" not found`);
-
-    await this.cocktailRepository.query(
-      'INSERT OR IGNORE INTO cocktail_ingredients (cocktailId, ingredientId) VALUES (?, ?)',
-      [cocktailId, ingredientId],
-    );
-
-    await this.cocktailRepository.query(
-      'UPDATE cocktail_ingredients SET quantity = ? WHERE cocktailId = ? AND ingredientId = ?',
-      [quantity.trim(), cocktailId, ingredientId],
-    );
-
-    return { cocktailId, ingredientId, quantity: quantity.trim() };
+    const res = await this.cocktailRepository.delete(id);
+    if (!res.affected) throw new NotFoundException('Cocktail not found');
+    return { deleted: true };
   }
 }

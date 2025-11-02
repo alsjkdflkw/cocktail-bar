@@ -1,22 +1,34 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, Delete, Put, Query } from '@nestjs/common';
 import { CocktailService } from './cocktail.service';
 import { CreateCocktailDto } from './dto/create-cocktail.dto';
 import { UpdateCocktailDto } from './dto/update-cocktail.dto';
-import { AddIngredientToCocktailsDto } from './dto/add-ingredient-to-cocktail.dto';
-import { SetIngredientQuantityDto } from 'src/ingredient/entities/set-ingredient-quantity.dto';
+import { FilterSortCocktailsDto } from './dto/filter-sort-cocktile.dto';
+
+type CreateWithIngredients = CreateCocktailDto & { ingredientIds?: number[] };
+type UpdateWithIngredients = UpdateCocktailDto & { ingredientIds?: number[] };
 
 @Controller('cocktail')
 export class CocktailController {
   constructor(private readonly cocktailService: CocktailService) {}
 
   @Post()
-  create(@Body() createCocktailDto: CreateCocktailDto) {
-    return this.cocktailService.create(createCocktailDto);
+  create(@Body() body: CreateWithIngredients) {
+    return this.cocktailService.create(body);
+  }
+
+  @Put(':id')
+  putOne(@Param('id') id: string, @Body() dto: UpdateWithIngredients) {
+    return this.cocktailService.update(+id, dto);
+  }
+
+  @Patch(':id')
+  updateOne(@Param('id') id: string, @Body() dto: UpdateWithIngredients) {
+    return this.cocktailService.update(+id, dto);
   }
 
   @Get()
-  findAll() {
-    return this.cocktailService.findAll();
+  findAll(@Query() query: FilterSortCocktailsDto) {
+    return this.cocktailService.findAllFiltered(query);
   }
 
   @Get(':id')
@@ -24,23 +36,8 @@ export class CocktailController {
     return this.cocktailService.findOne(+id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCocktailDto: UpdateCocktailDto) {
-    return this.cocktailService.update(+id, updateCocktailDto);
-  }
-
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.cocktailService.remove(+id);
-  }
-
-  @Post('ingredients/add-to-many')
-  addIngredientToMany(@Body() dto: AddIngredientToCocktailsDto) {
-    return this.cocktailService.addIngredientToMany(dto);
-  }
-
-  @Post('ingredients/set-quantity')
-  setIngredientQuantity(@Body() dto: SetIngredientQuantityDto) {
-    return this.cocktailService.setIngredientQuantity(dto);
   }
 }

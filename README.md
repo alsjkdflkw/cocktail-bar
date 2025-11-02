@@ -1,6 +1,6 @@
 # Cocktail Bar API
 
-NestJS + TypeORM (SQLite). Zarządzanie koktajlami, składnikami oraz ilościami składników na relacji wielu‑do‑wielu.
+NestJS + TypeORM (SQLite). Zarządzanie koktajlami, składnikami oraz ilościami składników.
 
 ## Szybki start
 
@@ -27,20 +27,18 @@ Baza danych: plik `db.sqlite` w katalogu projektu.
 ## Endpointy
 
 - POST /ingredient
-  - Body: { name, description, isAlcoholic, photo? }
 - GET /ingredient
+- GET /ingredient/:id
+- PATCH /ingredient/:id
+- PUT /ingredeint/:id
+- DELETE /cocktail/:id
 
 - POST /cocktail
-  - Body: { name, category, description, ingredientIds?: number[] }
 - GET /cocktail
-  - Wspiera filtrowanie, sortowanie, paginację (sekcja niżej).
+- PUT /cocktail/:id
 - GET /cocktail/:id
 - PATCH /cocktail/:id
 - DELETE /cocktail/:id
-
-- POST /cocktail/ingredients/set-quantity
-  - Body: { cocktailId: number, ingredientId: number, quantity: string }
-  - Tworzy wiersz w join‑table (jeśli brak), aktualizuje `quantity`, zwraca { cocktailId, ingredientId, quantity }.
 
 
 ## Filtrowanie, sortowanie, paginacja (GET /cocktail)
@@ -57,66 +55,44 @@ Obsługiwane parametry zapytania (patrz `FilterSortCocktailsDto` i `findAllFilte
 - page: number (>=1)
 - limit: number (1..100)
 
-## Przykłady curl
+## Przykłady cURL
 
-Ustawienie BASE:
-```
 export BASE=http://localhost:3000
-```
 
-Składniki:
-```
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/ingredient" -d '{"name":"White Rum","description":"Light rum","isAlcoholic":true}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/ingredient" -d '{"name":"Tequila","description":"Blue agave spirit","isAlcoholic":true}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/ingredient" -d '{"name":"Triple Sec","description":"Orange liqueur","isAlcoholic":true}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/ingredient" -d '{"name":"Lime Juice","description":"Freshly squeezed lime","isAlcoholic":false}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/ingredient" -d '{"name":"Sugar Syrup","description":"Simple syrup 1:1","isAlcoholic":false}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/ingredient" -d '{"name":"Mint Leaves","description":"Fresh mint leaves","isAlcoholic":false}'
-```
+# Dodawanie składników
 
-Koktajle z podlinkowaniem składników przez `ingredientIds`:
-```
-# Mojito
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail" -d '{"name":"Mojito","category":"Classic","description":"Minty rum highball","ingredientIds":[1,4,5,6]}'
-# Daiquiri
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail" -d '{"name":"Daiquiri","category":"Classic","description":"Rum, lime, sugar","ingredientIds":[1,4,5]}'
-# Margarita
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail" -d '{"name":"Margarita","category":"Classic","description":"Tequila, triple sec, lime","ingredientIds":[2,3,4]}'
-```
+curl -sS -H 'Content-Type: application/json' -X POST "$BASE/ingredient" -d '{"name":"Dark Rum","description":"Rich molasses rum","isAlcoholic":true}'
+curl -sS -H 'Content-Type: application/json' -X POST "$BASE/ingredient" -d '{"name":"Ginger Beer","description":"Spicy ginger soda","isAlcoholic":false}'
 
-Ustawienie ilości na relacji:
-```
-# Mojito (cocktailId=1): Rum(1), Lime(4), Sugar(5), Mint(6)
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":1,"ingredientId":1,"quantity":"50 ml"}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":1,"ingredientId":4,"quantity":"25 ml"}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":1,"ingredientId":5,"quantity":"15 ml"}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":1,"ingredientId":6,"quantity":"8 leaves"}'
+DRUM=$(curl -sS "$BASE/ingredient" | jq -r '.[]|select(.name=="Dark Rum")|.id' | head -n1)
+GBEER=$(curl -sS "$BASE/ingredient" | jq -r '.[]|select(.name=="Ginger Beer")|.id' | head -n1)
 
-# Daiquiri (cocktailId=2): Rum(1), Lime(4), Sugar(5)
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":2,"ingredientId":1,"quantity":"60 ml"}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":2,"ingredientId":4,"quantity":"30 ml"}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":2,"ingredientId":5,"quantity":"15 ml"}'
+# Dodawanie koktaili
 
-# Margarita (cocktailId=3): Tequila(2), Triple Sec(3), Lime(4)
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":3,"ingredientId":2,"quantity":"50 ml"}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":3,"ingredientId":3,"quantity":"25 ml"}'
-curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail/ingredients/set-quantity" -d '{"cocktailId":3,"ingredientId":4,"quantity":"25 ml"}'
-```
+curl -sS -H 'Content-Type: application/json' -X POST "$BASE/cocktail" -d @- <<EOF
+{
+  "name":"Dark 'n' Stormy",
+  "category":"Classic",
+  "description":"Dark rum highball with ginger beer",
+  "ingredientPairs":[[$DRUM,"50 ml"],[$GBEER,"120 ml"]]
+}
+EOF
 
-Filtrowanie i sortowanie:
-```
-# Koktajle zawierające składnik 1
-curl -sS "$BASE/cocktail?ingredientId=1"
+# Patch i Put
 
-# Koktajle zawierające wszystkie składniki 1 i 4, sort malejąco po nazwie
-curl -sS "$BASE/cocktail?ingredientIds=1,4&ingredientsMode=all&sort=-name"
+CID=$(curl -sS "$BASE/cocktail" | jq -r '.[]|select(.name=="Dark '\''n'\'' Stormy")|.id' | head -n1)
 
-# Bezalkoholowe, sort po kategorii i nazwie
-curl -sS "$BASE/cocktail?alcoholFree=true&sort=category,name"
+curl -sS -H 'Content-Type: application/json' -X PATCH "$BASE/cocktail/$CID" -d @- <<EOF
+{
+  "ingredientPairs":[[$DRUM,"55 ml"],[$GBEER,"110 ml"]]
+}
+EOF
 
-# Szukaj po nazwie i kategorii
-curl -sS "$BASE/cocktail?name=marg&category=Classic"
-
-# Paginacja: strona 2 po 10 wyników, sort po id malejąco
-curl -sS "$BASE/cocktail?limit=10&page=2&sort=-id"
-```
+curl -sS -H 'Content-Type: application/json' -X PUT "$BASE/cocktail/$CID" -d @- <<EOF
+{
+  "name":"Dark 'n' Stormy",
+  "category":"Classic",
+  "description":"Balanced and spicy",
+  "ingredientPairs":[[$DRUM,"50 ml"],[$GBEER,"120 ml"]]
+}
+EOF
