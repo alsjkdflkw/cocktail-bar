@@ -39,7 +39,6 @@ export class CocktailController {
     return this.cocktailService.addIngredientToMany(dto);
   }
 
-  // New: set quantity on the join table without changing relations
   @Post('ingredients/set-quantity')
   setIngredientQuantity(@Body() dto: SetIngredientQuantityDto) {
     return this.cocktailService.setIngredientQuantity(dto);

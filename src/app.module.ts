@@ -9,8 +9,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: 'db.sqlite', // <-- This was 'name'
-      entities: ['dist/**/*.entity.js'], // <-- Typo fixed: 'entity'
+      database: 'db.sqlite', 
+      entities: ['dist/**/*.entity.js'],
       synchronize: false,
     }),
     CocktailModule,

@@ -5,7 +5,6 @@ import { DataSource } from 'typeorm';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Ensure the join table and quantity column exist (safe to run every boot)
   const dataSource = app.get(DataSource);
   await dataSource.query(`
     CREATE TABLE IF NOT EXISTS cocktail_ingredients (

@@ -7,6 +7,7 @@ import { CreateCocktailDto } from './dto/create-cocktail.dto';
 import { Ingredient } from 'src/ingredient/entities/ingredient.entity';
 import { AddIngredientToCocktailsDto } from './dto/add-ingredient-to-cocktail.dto'; 
 import { SetIngredientQuantityDto } from 'src/ingredient/entities/set-ingredient-quantity.dto';
+import { FilterSortCocktailsDto } from './dto/filter-sort-cocktile.dto';
 
 @Injectable()
 export class CocktailService {
@@ -15,11 +16,103 @@ export class CocktailService {
     @InjectRepository(Ingredient) private ingredientRepository: Repository<Ingredient>,
   ) {}
 
+  async findAllFiltered(dto: FilterSortCocktailsDto) {
+    const {
+      name,
+      category,
+      ingredientId,
+      ingredientIds,
+      ingredientsMode = 'any',
+      alcoholFree,
+      sort,
+      page,
+      limit,
+    } = dto;
+
+    const qb = this.cocktailRepository
+      .createQueryBuilder('cocktail')
+      .leftJoinAndSelect('cocktail.ingredients', 'ingredient')
+      .distinct(true); 
+
+    
+    if (name) {
+      qb.andWhere('cocktail.name LIKE :name', { name: `%${name}%` });
+    }
+
+    
+    if (category) {
+      qb.andWhere('cocktail.category = :category', { category });
+    }
+
+    
+    if (ingredientId) {
+      qb.andWhere('ingredient.id = :ingredientId', { ingredientId });
+    }
+
+    if (ingredientIds && ingredientIds.length) {
+      if (ingredientsMode === 'any') {
+        
+        qb.andWhere('ingredient.id IN (:...ingIdsAny)', { ingIdsAny: ingredientIds });
+      } else {
+        
+        ingredientIds.forEach((id, idx) => {
+          qb.andWhere(
+            `EXISTS (
+              SELECT 1 FROM cocktail_ingredients ci
+              WHERE ci.cocktailId = cocktail.id AND ci.ingredientId = :ingAll${idx}
+            )`,
+            { [`ingAll${idx}`]: id },
+          );
+        });
+      }
+    }
+
+    
+    if (alcoholFree === 'true') {
+      qb.andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM cocktail_ingredients ci
+          JOIN ingredient ing2 ON ing2.id = ci.ingredientId
+          WHERE ci.cocktailId = cocktail.id
+            AND ing2.isAlcoholic = 1
+        )`,
+      );
+    }
+
+    
+    const orderMap: Record<string, string> = {
+      name: 'cocktail.name',
+      category: 'cocktail.category',
+      id: 'cocktail.id',
+    };
+
+    if (sort) {
+      const parts = sort.split(',').map((x) => x.trim()).filter(Boolean);
+      for (const p of parts) {
+        const desc = p.startsWith('-');
+        const key = desc ? p.slice(1) : p;
+        const col = orderMap[key];
+        if (col) {
+          qb.addOrderBy(col, desc ? 'DESC' : 'ASC');
+        }
+      }
+    } else {
+      qb.addOrderBy('cocktail.name', 'ASC');
+    }
+
+    const take = limit ?? 50;
+    const skip = page && limit ? (page - 1) * take : 0;
+    qb.take(take).skip(skip);
+
+    return qb.getMany();
+  }
+
+
   async create(createCocktailDto: CreateCocktailDto) {
   const { ingredientIds, ...rest } =
     createCocktailDto as CreateCocktailDto & { ingredientIds?: number[] };
 
-  // Create an empty entity (always returns Cocktail), then assign fields
   const cocktail = this.cocktailRepository.create();
   Object.assign(cocktail, rest);
 
@@ -91,7 +184,6 @@ export class CocktailService {
 
     Object.assign(cocktail, rest);
 
-    // If ingredientIds provided, replace the relation set
     if (Array.isArray(ingredientIds)) {
       if (ingredientIds.length === 0) {
         cocktail.ingredients = [];
@@ -117,7 +209,6 @@ export class CocktailService {
     return this.cocktailRepository.remove(cocktail);
   }
 
-  // Existing helper: add one ingredient to many cocktails; idempotent
   async addIngredientToMany(dto: AddIngredientToCocktailsDto) {
     const { ingredientId, cocktailIds } = dto;
 
@@ -156,19 +247,16 @@ export class CocktailService {
     const ingredient = await this.ingredientRepository.findOneBy({ id: ingredientId });
     if (!ingredient) throw new NotFoundException(`Ingredient with ID "${ingredientId}" not found`);
 
-    // Ensure the join row exists
     await this.cocktailRepository.query(
       'INSERT OR IGNORE INTO cocktail_ingredients (cocktailId, ingredientId) VALUES (?, ?)',
       [cocktailId, ingredientId],
     );
 
-    // Update quantity
     await this.cocktailRepository.query(
       'UPDATE cocktail_ingredients SET quantity = ? WHERE cocktailId = ? AND ingredientId = ?',
       [quantity.trim(), cocktailId, ingredientId],
     );
 
-    // Return something simple (keeps your GETs unchanged)
     return { cocktailId, ingredientId, quantity: quantity.trim() };
   }
 }
