@@ -20,6 +20,9 @@ Baza danych: plik `db.sqlite` w katalogu projektu.
   - Kolumny: `cocktailId`, `ingredientId`, `quantity` (TEXT)
   - Nazwy tabeli i kolumn są przypięte w `@JoinTable` w encji `Cocktail`.
 
+- ![database coktaili](screenshots/cocktaileDB.png)
+- ![database składników](screenshots/ingredientDB.png)
+
 
 ## Endpointy
 
