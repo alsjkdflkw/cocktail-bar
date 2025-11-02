@@ -11,7 +11,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       type: 'sqlite',
       database: 'db.sqlite', // <-- This was 'name'
       entities: ['dist/**/*.entity.js'], // <-- Typo fixed: 'entity'
-      synchronize: true,
+      synchronize: false,
     }),
     CocktailModule,
     IngredientModule,

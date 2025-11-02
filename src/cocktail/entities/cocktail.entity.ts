@@ -3,20 +3,23 @@ import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from "t
 
 @Entity()
 export class Cocktail {
-    @PrimaryGeneratedColumn()
-    id : number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column({unique : true})
-    name : string
+  @Column({ unique: true })
+  name: string;
 
-    @Column()
-    category : string
+  @Column()
+  category: string;
 
-    @Column() 
-    description : string
+  @Column()
+  description: string;
 
-    @ManyToMany(() => Ingredient, (ingredient) => ingredient.cocktails)
-    @JoinTable({ name: 'cocktail_ingredients' }) // join table
-    ingredients: Ingredient[]; 
-  
+  @ManyToMany(() => Ingredient, (ingredient) => ingredient.cocktails)
+  @JoinTable({
+  name: 'cocktail_ingredients',
+  joinColumn: { name: 'cocktailId', referencedColumnName: 'id' },
+  inverseJoinColumn: { name: 'ingredientId', referencedColumnName: 'id' },
+})
+ingredients: Ingredient[];
 }

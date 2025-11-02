@@ -1,17 +1,18 @@
-
-import { IsNotEmpty, IsString } from 'class-validator';
-
+import { IsArray, IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
 
 export class CreateCocktailDto {
   @IsString()
-  @IsNotEmpty()
   name: string;
 
   @IsString()
-  @IsNotEmpty()
   category: string;
 
   @IsString()
-  @IsNotEmpty()
   description: string;
+
+  @IsArray()
+  @IsInt({ each: true })
+  @IsPositive({ each: true })
+  @IsOptional()
+  ingredientIds?: number[];
 }
